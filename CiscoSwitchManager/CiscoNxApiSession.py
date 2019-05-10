@@ -12,39 +12,49 @@ import logging
 import requests
 import urllib3
 
-# from wallet import get_password
-
 log = logging.getLogger(__name__)
 urllib3.disable_warnings()
 
+DEFAULT_USER = 'admin'
+DEFAUL_PASSWORD = 'admin'
 
 class CiscoNxApiSession(object):
     """
     Class for interacting with the Cisco NX-OS API
     """
 
-    def __init__(self, switch_ip):
+    def __init__(self, switch_ip, user=DEFAULT_USER, password=DEFAUL_PASSWORD):
         """ Initiator
 
         switch_ip: (string) IP address of the switch to connect with
         """
 
         self.ip = switch_ip
+        self._user = user
+        self._password = password
+
         self.base_url = 'https://%s:443/' % switch_ip
         self.cookies = {}
         self.open_session()
 
-    # FIXME: Change admin and Welcome1 to use get methods
+    def set_user(self, user):
+        """ Sets the value to be used as the switch username by the CisciNxApiSession instance """
+        self._user = user
+
+    def set_password(self, password):
+        """ Sets the value to be used as the switch username by the CisciNxApiSession instance """
+        self._password = password
+
     def open_session(self):
         """ Creates a session with the Cisco switch NX-OS API and saves a cookie for this session """
 
         node = "api/aaaLogin.json"
-        payload = {"aaaUser": {"attributes": {"name": 'admin',
-                                              "pwd": 'Welcome1'}}}
+        payload = {"aaaUser": {"attributes": {"name": self.user,
+                                              "pwd": self.password}}}
 
         try:
             log.info("Opening API session with switch [%s]", self.ip)
-            response = self.post(node=node, payload=payload)
+            response = self._post(node=node, payload=payload)
             auth_token = response['imdata'][0]['aaaLogin']['attributes']['token']
             self.cookies['APIC-Cookie'] = auth_token
 
@@ -52,22 +62,21 @@ class CiscoNxApiSession(object):
             log.error("Exception while opening session with Cisco switch [%s] [%s]", self.ip, err)
             raise
 
-    # FIXME: Change admin to use get method
     def close_session(self):
         """ Closes a session with the Cisco switch NX-OS API """
 
         node = "api/aaaLogout.json"
-        payload = {"aaaUser": {"attributes": {"name": 'admin'}}}
+        payload = {"aaaUser": {"attributes": {"name": self.user}}}
 
         try:
-            self.post(node=node, payload=payload)
+            self._post(node=node, payload=payload)
 
         except Exception as err:
             log.error("Exception while closing session with Cisco switch [%s] [%s]", self.ip, err)
             raise
 
     # FIXME: Change admin and Welcome1 to use get methods
-    def post(self, node, payload, timeout=60):
+    def _post(self, node, payload, timeout=60):
         """ Sends a HTTP POST request to the NX-OS API on the switch and returns the response
 
         node:    ()
@@ -76,7 +85,7 @@ class CiscoNxApiSession(object):
 
         url = self.base_url + node
         headers = {'Content-Type': 'application/json'}
-        auth = ('admin', 'Welcome1')
+        auth = (self.user, self.password)
 
         try:
             # send the command to the switch API
@@ -119,7 +128,7 @@ class CiscoNxApiSession(object):
                                "output_format": "json"}}
 
         try:
-            return self.post(node, payload, timeout)
+            return self._post(node, payload, timeout)
         except Exception:
             log.error("FAILED COMMAND [%s]", cmd)
             raise
@@ -140,7 +149,7 @@ class CiscoNxApiSession(object):
                                "output_format": "json"}}
 
         try:
-            return self.post(node, payload, timeout)
+            return self._post(node, payload, timeout)
         except Exception:
             log.error("FAILED COMMAND(S) %s", cmds)
             raise
@@ -173,7 +182,7 @@ class CiscoNxApiSession(object):
         result = self.run_show_command("show startup-config")
         return result['ins_api']['outputs']['output']['body']['nf:filter']['m:configure']['m:terminal']
 
-    def show_routing_info(self):
+    def show_ip4_routing_info(self):
         """ Returns a dictionary containing information about IPv4 routing on the switch
 
         (cli cmd: show ip route)
