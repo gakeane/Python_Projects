@@ -60,7 +60,3 @@ class Preceptron(object):
             return np.array([0.0])
         else:
             return np.array([1.0])
-
-
-x = Preceptron(4)
-print x.get_output(np.random.uniform(0, 10, 4))
